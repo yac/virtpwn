@@ -37,5 +37,8 @@ def virsh_or_die(cmd):
     return run_or_die('virsh %s' % cmd)
 
 def run_interactive(cmd):
-    p = subprocess.Popen(cmd, shell=False, stdin=sys.stdin, stdout=sys.stdout)
-    p.communicate()
+    try:
+        p = subprocess.Popen(cmd, shell=False, stdin=sys.stdin, stdout=sys.stdout)
+        p.communicate()
+    except KeyboardInterrupt:
+        pass

@@ -25,6 +25,7 @@ def get_instance_ip(name):
     # mac_path = "devices/interface[@type='bridge']/mac"
     mac = domxml.find(mac_path).attrib["address"].lower().strip()
 
+    ip = None
     # So far, only method is from DHCP lease, but in future other methods
     # such as qemu guest daemon or sniffing can be added.
     try:

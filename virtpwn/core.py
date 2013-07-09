@@ -232,13 +232,16 @@ class MachinePwnManager(object):
         if self.state >= const.VMS_POWEROFF:
             log.info("")
             log.info("virt domain: %s" % self.vm_id)
-        ip = self.ip()
-        if ip:
-            log.info("IP address: %s" % ip)
-        else:
-            log.info("IP address can't be determined.")
+        if self.state >= const.VMS_RUNNING:
+            ip = self.ip()
+            if ip:
+                log.info("IP address: %s" % ip)
+            else:
+                log.info("IP address can't be determined.")
 
     def do_ssh(self, wait=30):
+        if self.state < const.VMS_RUNNING:
+            self.do_up()
         ip = self.ip()
         if not ip:
             if wait:
