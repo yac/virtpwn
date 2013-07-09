@@ -35,9 +35,12 @@ class CommandFailed(PwnException):
         super(CommandFailed, self).__init__(kwargs)
 
 
-class Bug(PwnException):
-    message = "BUG: Unexpected state."
-
+class Bug(RuntimeError):
+    pass
 
 class VirshParseError(PwnException):
     message = "Failed to parse virsh output: %(out)s"
+
+
+class UnknownProvisioner(PwnException):
+    message = "Unknown provision provider: %(provider)s"

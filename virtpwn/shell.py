@@ -61,6 +61,16 @@ def ssh():
     pwn = core.get_pwn_manager()
     pwn.do_ssh()
 
+
+@arg('tasks', nargs='*')
+def provision(tasks):
+    """
+    Provision the machine.
+    """
+    pwn = core.get_pwn_manager()
+    pwn.do_provision(tasks=tasks)
+
+
 def parse_global_args(args):
     if args.verbose >= 2:
         log.log.setLevel(log.DEBUG)
@@ -72,7 +82,7 @@ def parse_global_args(args):
 
 def main():
     parser = argh.ArghParser()
-    commands = [up, down, delete, info, ssh]
+    commands = [up, down, delete, info, ssh, provision]
     parser.add_commands(commands)
     parser.add_argument('-c', '--show-commands', action='store_true',
                         help="display virsh/shell commands used")
@@ -82,3 +92,5 @@ def main():
         parser.dispatch(pre_call=parse_global_args)
     except exception.CommandFailed, ex:
         cmd.log_cmd_fail(ex)
+    except exception.ProjectConfigNotFound, ex:
+        log.info(ex)

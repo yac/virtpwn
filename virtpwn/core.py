@@ -7,6 +7,7 @@ import exception
 import ip
 import log
 from log import term
+import provision
 
 import logging
 import hashlib
@@ -76,13 +77,6 @@ class MachinePwnManager(object):
         else:
             tfun = term.yellow
         return tfun(const.VMS_DESC[self.state])
-
-    def ip(self):
-        assert(self.vm_id is not None)
-        if self._ip:
-            return self._ip
-        self._ip = ip.get_instance_ip(self.vm_id)
-        return self._ip
 
     def abs_conf_fn(self):
         return os.path.join(self.path, self.conf_fn)
@@ -164,6 +158,16 @@ class MachinePwnManager(object):
         hstamp = hashlib.sha1(str(stamp)).hexdigest()[0:4]
         self.vm_id = "%s_%s_%s" % (self.name, base, hstamp)
 
+    def ip(self, wait=30, log_fun=log.info):
+        assert(self.vm_id is not None)
+        if self._ip:
+            return self._ip
+        self._ip = ip.get_instance_ip(self.vm_id)
+        if not self._ip and wait:
+            log_fun("Waiting for IP address for next %d s" % wait)
+            log_fun("TODO: wait")
+        return self._ip
+
     def vm_create(self):
         assert(self.vm_id is None)
         log.verbose("Creating new %s VM.")
@@ -177,7 +181,7 @@ class MachinePwnManager(object):
         self._check_state()
         if self.state != const.VMS_POWEROFF:
             print self.state
-            raise exception.Bug(message="New VM cloned but in wrong state.")
+            raise exception.Bug("New VM cloned but in wrong state.")
 
     def vm_start(self):
         assert(self.state == const.VMS_POWEROFF)
@@ -198,6 +202,19 @@ class MachinePwnManager(object):
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
 
+    def vm_provision(self, tasks=None):
+        ip = self.ip()
+        assert(ip)
+        prov = self.conf.get('provision')
+        if not prov:
+            raise exception.MissingRequiredConfigOption(option='provision')
+        if not tasks:
+            tasks = prov.get('tasks')
+            if not tasks:
+                msg = "No provisioning tasks specified."
+                raise exception.MissingRequiredConfigOption(message=msg)
+        provision.provision(self, tasks)
+
     def do_up(self, provision=True):
         if self.state == const.VMS_NOT_CREATED:
             log.info("Creating new %s...", self.name_pp)
@@ -205,6 +222,8 @@ class MachinePwnManager(object):
         if self.state < const.VMS_RUNNING:
             log.info("Starting %s...", self.name_pp)
             self.vm_start()
+            if provision:
+                self.vm_provision()
         else:
             log.info("%s is already running.", self.name_pp)
 
@@ -242,17 +261,19 @@ class MachinePwnManager(object):
     def do_ssh(self, wait=30):
         if self.state < const.VMS_RUNNING:
             self.do_up()
-        ip = self.ip()
+        ip = self.ip(wait=wait)
         if not ip:
-            if wait:
-                log.info("IP address can't be determined, "
-                         "will retry for next %d s." % wait)
-                log.info("TODO: wait")
-            else:
-                log.info("IP address can't be determined.")
-        if not ip:
-            return
+            log.info("Failed to determine IP address, can't SSH.")
         # TODO: configurable
         user = 'root'
         cmd_seq = ['/usr/bin/ssh', '%s@%s' % (user, ip)]
         cmd.run_interactive(cmd_seq)
+
+    def do_provision(self, tasks=None, wait=30):
+        if self.state < const.VMS_RUNNING:
+            self.do_up(provision=False)
+        ip = self.ip(wait=wait)
+        if not ip:
+            log.info("Failed to determine IP address, can't provision.")
+            return
+        self.vm_provision(tasks)
