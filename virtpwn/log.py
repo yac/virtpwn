@@ -1,6 +1,10 @@
 import logging
 import blessings
 
+
+log_commands = False
+
+INFO = logging.INFO
 # between info and debug
 VERBOSE = 15
 DEBUG = logging.DEBUG
@@ -26,3 +30,7 @@ def verbose(*args, **kwargs):
 
 def debug(*args, **kwargs):
     log.debug(*args, **kwargs)
+
+def command(*args, **kwargs):
+    if log_commands:
+        log.info(*args, **kwargs)

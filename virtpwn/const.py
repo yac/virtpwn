@@ -6,9 +6,8 @@ DATA_FN = '.virtpwn'
 
 VMS_NOT_CREATED, VMS_POWEROFF, VMS_RUNNING, VMS_RESPONDING = range(4)
 VMS_DESC = [
-    "isn't created",
-    "is powered off",
-    "is running",
-    "is rewsponding"
+    "not created",
+    "powered off",
+    "running",
+    "rewsponding"
 ]
-

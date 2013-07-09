@@ -1,20 +1,21 @@
 # -*- encoding: utf-8 -*-
 
 from cmd import run, virsh
+import cmd
 import const
 import exception
-import cmd
+import ip
 import log
 from log import term
 
 import logging
+import hashlib
 import os.path
 import time
 import yaml
 
 
-VERSION = '0.0.1'
-
+VERSION = '0.1'
 
 
 def find_project(path=None):
@@ -55,13 +56,33 @@ def get_pwn_manager(path=None):
 
 class MachinePwnManager(object):
     def __init__(self, path=None, conf_fn=None):
-        self.data = {}
+        self.vm_id = None
         self.conf = {}
+        self._ip = None
         if path and conf_fn:
             self.load(path, conf_fn)
         else:
             self.path = path
             self.conf_fn = conf_fn
+
+    @property
+    def name_pp(self):
+        return term.bold(self.name)
+
+    @property
+    def state_pp(self):
+        if self.state >= const.VMS_RUNNING:
+            tfun = term.green
+        else:
+            tfun = term.yellow
+        return tfun(const.VMS_DESC[self.state])
+
+    def ip(self):
+        assert(self.vm_id is not None)
+        if self._ip:
+            return self._ip
+        self._ip = ip.get_instance_ip(self.vm_id)
+        return self._ip
 
     def abs_conf_fn(self):
         return os.path.join(self.path, self.conf_fn)
@@ -76,16 +97,6 @@ class MachinePwnManager(object):
         self.conf = yaml.load(conf_file)
         log.debug(" -> %s" % self.conf)
 
-    def _check_state(self):
-        log.debug("Checking machine state...")
-        self.id = None
-        if 'vm_id' in self.data:
-            self.id = self.data['vm_id']
-            # TODO: actually check
-            self.state = const.VMS_POWEROFF
-        else:
-            self.state = const.VMS_NOT_CREATED
-
     def _load_data(self):
         abs_data_fn = self.abs_data_fn()
         if not os.path.isfile(abs_data_fn):
@@ -93,23 +104,54 @@ class MachinePwnManager(object):
             return
         data_file = file(abs_data_fn, 'r')
         log.verbose("Machine data: %s" % abs_data_fn)
-        self.data = yaml.load(data_file)
-        log.debug(" -> %s" % self.data)
+        data = yaml.load(data_file)
+        self.vm_id = data.get('vm_id')
+        log.debug(" -> %s" % data)
+
+    def _check_state(self):
+        log.debug("Checking machine state...")
+        if self.vm_id:
+            ret, out, err = virsh('domstate "%s"' % self.vm_id)
+            if ret != 0:
+                log.verbose("No VM found for saved data. Cleaning.")
+                self._remove_vm_data()
+                self.state = const.VMS_NOT_CREATED
+            else:
+                if out == 'shut off':
+                    self.state = const.VMS_POWEROFF
+                elif out == 'running':
+                    self.state = const.VMS_RUNNING
+                else:
+                    raise exception.VirshParseError(out=out)
+        else:
+            self.state = const.VMS_NOT_CREATED
+        log.debug("%s seems to be %s." % (self.name_pp, self.state_pp))
 
     def load(self, path, conf_fn):
         self.path = path
         self.conf_fn = conf_fn
         self.name = self.path.split(os.sep)[-1]
-        log.verbose("Loading machine %s" % term.bold(self.name))
+        log.verbose("Loading %s:" % self.name_pp)
         self._load_conf()
         self._load_data()
         self._check_state()
 
     def _save_data(self):
+        data = {}
+        if self.vm_id:
+            data['vm_id'] = self.vm_id
+        if data:
+            abs_data_fn = self.abs_data_fn()
+            log.verbose("Updating machine data: %s" % abs_data_fn)
+            data_file = file(abs_data_fn, 'w')
+            yaml.dump(data, data_file)
+
+    def _remove_vm_data(self):
+        self.vm_id = None
+        # Currently, data contain only VM data, so just delete the data file.
         abs_data_fn = self.abs_data_fn()
-        data_file = file(abs_data_fn, 'w')
-        log.verbose("Updating machine data: %s" % abs_data_fn)
-        yaml.dump(self.data, data_file)
+        if os.path.isfile(abs_data_fn):
+            os.remove(abs_data_fn)
 
     def _get_base(self):
         base = self.conf.get('base')
@@ -119,40 +161,95 @@ class MachinePwnManager(object):
 
     def _generate_id(self, base):
         stamp = int(time.time())
-        self.id = "%s_%s_%d" % (self.name, base, stamp)
+        hstamp = hashlib.sha1(str(stamp)).hexdigest()[0:4]
+        self.vm_id = "%s_%s_%s" % (self.name, base, hstamp)
 
     def vm_create(self):
+        assert(self.vm_id is None)
         log.verbose("Creating new %s VM.")
-        assert(self.id is None)
         base = self._get_base()
         self._generate_id(base)
-        log.debug("New VM ID: %s" % self.id)
+        log.debug("New VM ID: %s" % self.vm_id)
         cmdstr = 'sudo virt-clone -o "%s" -n "%s" --auto-clone' % \
-                 (base, self.id)
+                 (base, self.vm_id)
         cmd.run_or_die(cmdstr)
-        self.data['vm_id'] = self.id
         self._save_data()
+        self._check_state()
+        if self.state != const.VMS_POWEROFF:
+            print self.state
+            raise exception.Bug(message="New VM cloned but in wrong state.")
 
     def vm_start(self):
-        log.verbose("Starting %s VM: %s", term.bold(self.name), self.id)
+        assert(self.state == const.VMS_POWEROFF)
+        assert(self.vm_id is not None)
+        log.verbose("Starting %s VM: %s", self.name_pp, self.vm_id)
+        cmd.virsh_or_die('start "%s"' % self.vm_id)
+
+    def vm_stop(self, force=False):
+        assert(self.state >= const.VMS_RUNNING)
+        assert(self.vm_id is not None)
+        cmd_str = 'destroy "%s"' % self.vm_id
+        if not force:
+            cmd_str += ' --graceful'
+        cmd.virsh_or_die(cmd_str)
+
+    def vm_destroy(self):
+        assert(self.vm_id is not None)
+        cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
+        cmd.virsh_or_die(cmd_str)
 
     def do_up(self, provision=True):
-        log.verbose("Bringing %s up." % term.bold(self.name))
         if self.state == const.VMS_NOT_CREATED:
+            log.info("Creating new %s...", self.name_pp)
             self.vm_create()
         if self.state < const.VMS_RUNNING:
+            log.info("Starting %s...", self.name_pp)
             self.vm_start()
         else:
-            log.info("%s already running.", term.bold(self.name))
+            log.info("%s is already running.", self.name_pp)
 
+    def do_down(self, force=False):
+        if self.state == const.VMS_NOT_CREATED:
+            log.info("%s isn't created.", self.name_pp)
+        elif self.state < const.VMS_RUNNING:
+            log.info("%s isn't running.", self.name_pp)
+        else:
+            log.info("Stopping %s..." % self.name_pp)
+            self.vm_stop(force)
 
-    def do_halt(self, force=False):
-        print "bringing machine(s) DOWN"
-        print "forced: %s" % force
+    def do_delete(self):
+        if self.state == const.VMS_NOT_CREATED:
+            log.info("%s isn't created.", self.name_pp)
+            return
+        if self.state >= const.VMS_RUNNING:
+            log.info("Force stopping %s..." % self.name_pp)
+            self.vm_stop(force=True)
+        log.info("Deleting %s..." % self.name_pp)
+        self.vm_destroy()
 
-    def do_status(self):
-        log.info("%s VM %s." % (term.bold(self.name),
-                                     const.VMS_DESC[self.state]))
+    def do_info(self):
+        log.info("%s is %s." % (self.name_pp, self.state_pp))
         if self.state >= const.VMS_POWEROFF:
-            log.info("VM ID: %s" % term.bold(self.id))
+            log.info("")
+            log.info("virt domain: %s" % self.vm_id)
+        ip = self.ip()
+        if ip:
+            log.info("IP address: %s" % ip)
+        else:
+            log.info("IP address can't be determined.")
 
+    def do_ssh(self, wait=30):
+        ip = self.ip()
+        if not ip:
+            if wait:
+                log.info("IP address can't be determined, "
+                         "will retry for next %d s." % wait)
+                log.info("TODO: wait")
+            else:
+                log.info("IP address can't be determined.")
+        if not ip:
+            return
+        # TODO: configurable
+        user = 'root'
+        cmd_seq = ['/usr/bin/ssh', '%s@%s' % (user, ip)]
+        cmd.run_interactive(cmd_seq)

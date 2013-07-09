@@ -26,3 +26,18 @@ class MissingRequiredConfigOption(PwnException):
 
 class CommandFailed(PwnException):
     message = "Running command failed: %(cmd)s"
+
+    def __init__(self, **kwargs):
+        self.cmd = kwargs.get('cmd')
+        self.ret = kwargs.get('ret')
+        self.out = kwargs.get('out')
+        self.err = kwargs.get('err')
+        super(CommandFailed, self).__init__(kwargs)
+
+
+class Bug(PwnException):
+    message = "BUG: Unexpected state."
+
+
+class VirshParseError(PwnException):
+    message = "Failed to parse virsh output: %(out)s"
