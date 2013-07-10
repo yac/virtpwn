@@ -165,7 +165,11 @@ class MachinePwnManager(object):
         self._ip = ip.get_instance_ip(self.vm_id)
         if not self._ip and wait:
             log_fun("Waiting for IP address for next %d s" % wait)
-            log_fun("TODO: wait")
+            for i in range(0, wait):
+                time.sleep(1)
+                self._ip = ip.get_instance_ip(self.vm_id)
+                if self._ip:
+                    break
         return self._ip
 
     def vm_create(self):
@@ -176,11 +180,10 @@ class MachinePwnManager(object):
         log.debug("New VM ID: %s" % self.vm_id)
         cmdstr = 'sudo virt-clone -o "%s" -n "%s" --auto-clone' % \
                  (base, self.vm_id)
-        cmd.run_or_die(cmdstr)
+        cmd.run_or_die(cmdstr, stdout=True)
         self._save_data()
         self._check_state()
         if self.state != const.VMS_POWEROFF:
-            print self.state
             raise exception.Bug("New VM cloned but in wrong state.")
 
     def vm_start(self):
@@ -266,8 +269,8 @@ class MachinePwnManager(object):
             log.info("Failed to determine IP address, can't SSH.")
         # TODO: configurable
         user = 'root'
-        cmd_seq = ['/usr/bin/ssh', '%s@%s' % (user, ip)]
-        cmd.run_interactive(cmd_seq)
+        cmd_seq = 'ssh "%s@%s"' % (user, ip)
+        cmd.run(cmd_seq, stdout=True, stderr=True)
 
     def do_provision(self, tasks=None, wait=30):
         if self.state < const.VMS_RUNNING:

@@ -11,6 +11,12 @@ def provision(pwn, tasks):
     ip = pwn.ip()
     if not ip:
         raise exception.Bug("Failed to determine IP address, can't provision.")
+    user = 'root'
     log.info("Provisioning %s using Fabric..." % ip)
-    cmd_seq = ['fab', '-f', fabfile, '-H', ip, '-u', 'root'] + tasks
-    cmd.run_interactive(cmd_seq)
+    cmd_str = 'fab -f "%(fabfile)s" -H "%(host)s" -u "%(user)s" %(tasks)s' % {
+                  'fabfile': fabfile,
+                  'host': ip,
+                  'user': user,
+                  'tasks': " ".join(tasks)
+              }
+    cmd.run_or_die(cmd_str, stdout=True, stderr=True)

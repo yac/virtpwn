@@ -15,17 +15,27 @@ def log_cmd_fail(ex, fail_log_fun=log.warning, out_log_fun=log.info):
         out_log_fun(term.yellow("stderr:"))
         out_log_fun(ex.err)
 
-def run(cmd):
+def run(cmd, stdout=False, stderr=False):
     log.command('$ %s' % cmd)
-    prc = subprocess.Popen(cmd, shell=True,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE)
+    if stdout:
+        sout = sys.stdout
+    else:
+        sout = subprocess.PIPE
+    if stderr:
+        serr = sys.stderr
+    else:
+        serr = subprocess.PIPE
+    prc = subprocess.Popen(cmd, shell=True, stdout=sout, stderr=serr)
     out, err = prc.communicate()
     errcode = prc.returncode
-    return (errcode, out.rstrip(), err.rstrip())
+    if out:
+        out = out.rstrip()
+    if err:
+        err = err.rstrip()
+    return (errcode, out, err)
 
-def run_or_die(cmd):
-    ret, out, err = run(cmd)
+def run_or_die(cmd, stdout=False, stderr=False):
+    ret, out, err = run(cmd, stdout=stdout, stderr=stderr)
     if ret != 0:
         raise exception.CommandFailed(cmd=cmd, ret=ret, out=out, err=err)
     return out
@@ -35,10 +45,3 @@ def virsh(cmd):
 
 def virsh_or_die(cmd):
     return run_or_die('virsh %s' % cmd)
-
-def run_interactive(cmd):
-    try:
-        p = subprocess.Popen(cmd, shell=False, stdin=sys.stdin, stdout=sys.stdout)
-        p.communicate()
-    except KeyboardInterrupt:
-        pass
