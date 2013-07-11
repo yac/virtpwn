@@ -265,12 +265,17 @@ class MachinePwnManager(object):
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
 
-    def vm_initial_setup(self):
+    def vm_initial_setup(self, tasks=None):
         log.info("Running initial setup for %s:" % self.name_pp)
         ip = self.get_ip(fatal=True)
         init_conf = self.conf.get('init')
+        # hostname magic
+        _tasks = init_conf['tasks']
+        if 'hostname' in _tasks:
+            i = _tasks.index('hostname')
+            _tasks[i] = 'hostname:%s' % self.vm_id
         try:
-            provision.provision(self, init_conf)
+            provision.provision(self, init_conf, tasks)
         except Exception, e:
             self.vm_init = const.VMINIT_FAIL
             self._save_data()
@@ -383,7 +388,7 @@ class MachinePwnManager(object):
             self.do_up(provision=False)
         ip = self.get_ip(fatal=True)
         if init:
-            self.vm_initial_setup()
+            self.vm_initial_setup(tasks)
         else:
             self.vm_provision(tasks)
 
