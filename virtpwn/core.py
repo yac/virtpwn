@@ -285,7 +285,7 @@ class MachinePwnManager(object):
     def do_info(self):
         log.info("%s is %s." % (self.name_pp, self.state_pp))
         if self.state >= const.VMS_POWEROFF:
-            log.info("")
+            log.info('')
             log.info("virt domain: %s" % self.vm_id)
         if self.vm_init:
             if self.vm_init == const.VMINIT_DONE:
@@ -293,11 +293,16 @@ class MachinePwnManager(object):
             elif self.vm_init == const.VMINIT_FAIL:
                 init_str = term.yellow('failed')
             log.info("initial setup: %s" % init_str)
-
         if self.state >= const.VMS_RUNNING:
+            log.info('')
             ip = self.get_ip(wait=0)
             if ip:
                 log.info("IP address: %s" % term.bold(ip))
+                if self.check_ssh():
+                    ssh_str = term.green('open')
+                else:
+                    ssh_str = term.yellow('closed')
+                log.info("SSH port: %s" % ssh_str)
             else:
                 log.info("IP address can't be determined.")
 
@@ -305,20 +310,29 @@ class MachinePwnManager(object):
         ip = self.get_ip(wait=0, fatal=True)
         return "%s@%s" % (self.vm_user, ip)
 
+    def check_ssh(self):
+        """
+        Return True if SSH port is open.
+        """
+        ip = self.get_ip(wait=0)
+        if not ip:
+            return False
+        port = 22
+        # TODO: nc may be unavailable
+        ret, _, _ = run(": | nc '%s' %d" % (ip, port))
+        return (ret == 0)
+
     def ensure_ssh(self, wait=30, log_fun=log.info):
         assert(self.state >= const.VMS_RUNNING)
-        ip = self.get_ip(fatal=True)
-        cmd_str = ": | nc '%s' 22" % ip
-        ret, _, _ = run(cmd_str)
-        if ret != 0:
-            log_fun("Waiting for SSH connection for next %d s..." % wait)
-            for i in range(0, wait):
-                time.sleep(1)
-                ret, _, _ = run(cmd_str)
-                if ret == 0:
-                    break
-        if ret != 0:
-            raise SshConnectionError(machine=self.name)
+        self.get_ip()
+        if self.check_ssh():
+            return
+        log_fun("Waiting for SSH connection for next %d s..." % wait)
+        for i in range(0, wait):
+            time.sleep(1)
+            if self.check_ssh():
+                return
+        raise SshConnectionError(machine=self.name)
 
     def do_ssh(self, wait=30):
         if self.state < const.VMS_RUNNING:
@@ -339,5 +353,7 @@ class MachinePwnManager(object):
             self.vm_provision(tasks)
 
     def do_mount(self):
-        # TODO
-        pass
+        if self.state < const.VMS_RUNNING:
+            self.do_up()
+        self.ensure_ssh()
+        host = self.get_ssh_host()
