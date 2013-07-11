@@ -20,6 +20,11 @@ class ProjectConfigNotFound(PwnException):
     message = "Couldn't find any project configuration file {%s}" % \
               ", ".join(const.CONF_FNS)
 
+
+class InvalidConfig(PwnException):
+    message = "Invalid configuration: %(reason)s"
+
+
 class MissingRequiredConfigOption(PwnException):
     message = "Config is missing required option %(option)s"
 
@@ -38,9 +43,22 @@ class CommandFailed(PwnException):
 class Bug(RuntimeError):
     pass
 
+
 class VirshParseError(PwnException):
     message = "Failed to parse virsh output: %(out)s"
 
 
 class UnknownProvisioner(PwnException):
     message = "Unknown provision provider: %(provider)s"
+
+
+class SshConnectionError(PwnException):
+    message = "Can't SSH to machine %(machine)s"
+
+
+class UnknownGuestAddress(PwnException):
+    message = "Failed to determine IP address of %(machine)s"
+
+
+class InvalidTask(PwnException):
+    message = "Invalid task: %(task)s"

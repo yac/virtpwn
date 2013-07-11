@@ -11,3 +11,6 @@ VMS_DESC = [
     "running",
     "rewsponding"
 ]
+
+VMINIT_FAIL = 'fail'
+VMINIT_DONE = 'done'

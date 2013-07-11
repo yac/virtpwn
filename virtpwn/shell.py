@@ -62,13 +62,30 @@ def ssh():
     pwn.do_ssh()
 
 
-@arg('tasks', nargs='*')
-def provision(tasks):
+def mount():
+    """
+    Mount the machine.
+    """
+    pwn = core.get_pwn_manager()
+    pwn.do_mount()
+
+
+def umount():
+    """
+    Unmount the machine.
+    """
+    pwn = core.get_pwn_manager()
+    pwn.do_umount()
+
+
+@arg('-i', '--init', help="run initial setup")
+@arg('tasks', nargs='*', help="specify provisioning tasks")
+def provision(tasks, init=False):
     """
     Provision the machine.
     """
     pwn = core.get_pwn_manager()
-    pwn.do_provision(tasks=tasks)
+    pwn.do_provision(tasks=tasks, init=init)
 
 
 def parse_global_args(args):
@@ -82,7 +99,7 @@ def parse_global_args(args):
 
 def main():
     parser = argh.ArghParser()
-    commands = [up, down, delete, info, ssh, provision]
+    commands = [up, down, delete, info, ssh, provision, mount, umount]
     parser.add_commands(commands)
     parser.add_argument('-c', '--show-commands', action='store_true',
                         help="display virsh/shell commands used")

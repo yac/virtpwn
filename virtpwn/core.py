@@ -10,7 +10,6 @@ from log import term
 import provision
 
 import logging
-import hashlib
 import os.path
 import time
 import yaml
@@ -99,8 +98,9 @@ class MachinePwnManager(object):
         data_file = file(abs_data_fn, 'r')
         log.verbose("Machine data: %s" % abs_data_fn)
         data = yaml.load(data_file)
-        self.vm_id = data.get('vm_id')
         log.debug(" -> %s" % data)
+        self.vm_id = data.get('vm_id')
+        self.vm_init = data.get('vm_init')
 
     def _check_state(self):
         log.debug("Checking machine state...")
@@ -125,6 +125,11 @@ class MachinePwnManager(object):
         self.path = path
         self.conf_fn = conf_fn
         self.name = self.path.split(os.sep)[-1]
+        # config
+        self.vm_id = None
+        # TODO: configurable
+        self.vm_user = 'root'
+        self.vm_init = None
         log.verbose("Loading %s:" % self.name_pp)
         self._load_conf()
         self._load_data()
@@ -134,6 +139,8 @@ class MachinePwnManager(object):
         data = {}
         if self.vm_id:
             data['vm_id'] = self.vm_id
+        if self.vm_init:
+            data['vm_init'] = self.vm_init
         if data:
             abs_data_fn = self.abs_data_fn()
             log.verbose("Updating machine data: %s" % abs_data_fn)
@@ -153,23 +160,38 @@ class MachinePwnManager(object):
             raise MissingRequiredConfigOption(option='base')
         return base
 
-    def _generate_id(self, base):
-        stamp = int(time.time())
-        hstamp = hashlib.sha1(str(stamp)).hexdigest()[0:4]
-        self.vm_id = "%s_%s_%s" % (self.name, base, hstamp)
+    def _get_domains(self):
+        doms_str = cmd.virsh_or_die('list --all --name')
+        doms = doms_str.strip().split("\n")
+        return doms
 
-    def ip(self, wait=30, log_fun=log.info):
+    def _generate_id(self, base):
+        assert(self.name)
+        doms = self._get_domains()
+        new_id = self.name
+        pfix = 0
+        while new_id in doms:
+            pfix += 1
+            new_id = "%s_%d" % (self.name, pfix)
+        if pfix > 0:
+            log.verbose("%s domain exists, using %s" % (self.name, new_id))
+        self.vm_id = new_id
+        return self.vm_id
+
+    def get_ip(self, wait=30, fatal=False, log_fun=log.info):
         assert(self.vm_id is not None)
         if self._ip:
             return self._ip
         self._ip = ip.get_instance_ip(self.vm_id)
         if not self._ip and wait:
-            log_fun("Waiting for IP address for next %d s" % wait)
+            log_fun("Waiting for IP address for next %d s..." % wait)
             for i in range(0, wait):
                 time.sleep(1)
                 self._ip = ip.get_instance_ip(self.vm_id)
                 if self._ip:
                     break
+        if fatal and not self._ip:
+            raise UnknownGuestAddress(machine=self.name)
         return self._ip
 
     def vm_create(self):
@@ -205,18 +227,26 @@ class MachinePwnManager(object):
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
 
+    def vm_initial_setup(self):
+        log.info("Running initial setup for %s:" % self.name_pp)
+        ip = self.get_ip(fatal=True)
+        init_conf = self.conf.get('init')
+        try:
+            provision.provision(self, init_conf)
+        except Exception, e:
+            self.vm_init = const.VMINIT_FAIL
+            self._save_data()
+            raise e
+        self.vm_init = const.VMINIT_DONE
+        self._save_data()
+
     def vm_provision(self, tasks=None):
-        ip = self.ip()
-        assert(ip)
-        prov = self.conf.get('provision')
-        if not prov:
+        ip = self.get_ip(fatal=True)
+        prov_conf = self.conf.get('provision')
+        if not prov_conf:
             raise exception.MissingRequiredConfigOption(option='provision')
-        if not tasks:
-            tasks = prov.get('tasks')
-            if not tasks:
-                msg = "No provisioning tasks specified."
-                raise exception.MissingRequiredConfigOption(message=msg)
-        provision.provision(self, tasks)
+        provision.provision(self, prov_conf, tasks)
+
 
     def do_up(self, provision=True):
         if self.state == const.VMS_NOT_CREATED:
@@ -225,6 +255,9 @@ class MachinePwnManager(object):
         if self.state < const.VMS_RUNNING:
             log.info("Starting %s...", self.name_pp)
             self.vm_start()
+            self._check_state()
+            if provision and not self.vm_init:
+                self.vm_initial_setup()
             if provision:
                 self.vm_provision()
         else:
@@ -254,29 +287,57 @@ class MachinePwnManager(object):
         if self.state >= const.VMS_POWEROFF:
             log.info("")
             log.info("virt domain: %s" % self.vm_id)
+        if self.vm_init:
+            if self.vm_init == const.VMINIT_DONE:
+                init_str = term.green('done')
+            elif self.vm_init == const.VMINIT_FAIL:
+                init_str = term.yellow('failed')
+            log.info("initial setup: %s" % init_str)
+
         if self.state >= const.VMS_RUNNING:
-            ip = self.ip()
+            ip = self.get_ip(wait=0)
             if ip:
-                log.info("IP address: %s" % ip)
+                log.info("IP address: %s" % term.bold(ip))
             else:
                 log.info("IP address can't be determined.")
+
+    def get_ssh_host(self):
+        ip = self.get_ip(wait=0, fatal=True)
+        return "%s@%s" % (self.vm_user, ip)
+
+    def ensure_ssh(self, wait=30, log_fun=log.info):
+        assert(self.state >= const.VMS_RUNNING)
+        ip = self.get_ip(fatal=True)
+        cmd_str = ": | nc '%s' 22" % ip
+        ret, _, _ = run(cmd_str)
+        if ret != 0:
+            log_fun("Waiting for SSH connection for next %d s..." % wait)
+            for i in range(0, wait):
+                time.sleep(1)
+                ret, _, _ = run(cmd_str)
+                if ret == 0:
+                    break
+        if ret != 0:
+            raise SshConnectionError(machine=self.name)
 
     def do_ssh(self, wait=30):
         if self.state < const.VMS_RUNNING:
             self.do_up()
-        ip = self.ip(wait=wait)
-        if not ip:
-            log.info("Failed to determine IP address, can't SSH.")
-        # TODO: configurable
-        user = 'root'
-        cmd_seq = 'ssh "%s@%s"' % (user, ip)
+            self._check_state()
+        self.ensure_ssh()
+        host = self.get_ssh_host()
+        cmd_seq = "ssh '%s'" % host
         cmd.run(cmd_seq, stdout=True, stderr=True)
 
-    def do_provision(self, tasks=None, wait=30):
+    def do_provision(self, tasks=None, init=False):
         if self.state < const.VMS_RUNNING:
             self.do_up(provision=False)
-        ip = self.ip(wait=wait)
-        if not ip:
-            log.info("Failed to determine IP address, can't provision.")
-            return
-        self.vm_provision(tasks)
+        ip = self.get_ip(fatal=True)
+        if init:
+            self.vm_initial_setup()
+        else:
+            self.vm_provision(tasks)
+
+    def do_mount(self):
+        # TODO
+        pass
