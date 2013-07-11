@@ -62,20 +62,24 @@ def ssh():
     pwn.do_ssh()
 
 
-def mount():
+
+@arg('src', nargs='?', help="machine directory to mount")
+@arg('dst', nargs='?', help="host mount point")
+def mount(src=None, dst=None):
     """
-    Mount the machine.
+    Mount the machine directory.
     """
     pwn = core.get_pwn_manager()
-    pwn.do_mount()
+    pwn.do_mount(src, dst)
 
 
-def umount():
+@arg('dst', nargs='?', help="host mount point")
+def umount(dst=None):
     """
-    Unmount the machine.
+    Unmount the machine director{ies,y}.
     """
     pwn = core.get_pwn_manager()
-    pwn.do_umount()
+    pwn.do_umount(dst)
 
 
 @arg('-i', '--init', help="run initial setup")
