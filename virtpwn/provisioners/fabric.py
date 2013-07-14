@@ -13,29 +13,54 @@ def parse_tasks(tasks):
         return task
     return map(parse_task, tasks)
 
-def provision(pwn, conf, tasks=None):
+def tasks_magic(tasks, pwn):
+    """
+    Magically preproccess tasks.
+
+    Provide additional information from pwn manager in order to reduce
+    redundancy in machine config file.
+    """
+    def replace(old, new):
+        if old in tasks:
+            log.verbose("Magically modifying task '%s' to '%s'" % (old,new))
+            i = tasks.index(old)
+            tasks[i] = new
+    replace('hostname', 'hostname:%s' % pwn.vm_id)
+    replace('add_admin_user', 'add_admin_user:%s' % pwn.vm_user)
+
+def provision(pwn, conf, tasks=None, user=None):
     if not tasks:
         try:
             tasks = conf.get('tasks')
         except AttributeError:
+            print tasks
             reason = "incorrect provisioning configuration"
             raise exception.InvalidConfig(reason=reason)
     if not tasks:
         msg = "No provisioning tasks specified."
         raise exception.MissingRequiredConfigOption(message=msg)
-    if 'fabfile' in conf:
-        fabfile = conf['fabfile']
-    else:
-        fabfile = virtpwn.fabric.BASE_FABFILE
-        log.verbose('No fabfile specified, using builin: %s' % fabfile)
     ip = pwn.get_ip(wait=0, fatal=True)
     pwn.ensure_ssh()
-    log.info("Provisioning %s using Fabric..." % ip)
+    if 'fabfile' in conf:
+        fabfile = conf['fabfile']
+        magic = False
+    else:
+        fabfile = virtpwn.fabric.BASE_FABFILE
+        magic = True
+        log.verbose('No fabfile specified, using builin: %s' % fabfile)
+    if magic:
+        tasks_magic(tasks, pwn)
+    if 'user' in conf:
+        # user setting in conf overrides passed user
+        user = conf['user']
+    elif not user:
+        user = pwn.vm_user
+    log.info("Provisioning %s using Fabric as %s..." % (ip, user))
     ftasks = parse_tasks(tasks)
     cmd_str = 'fab -f "%(fabfile)s" -H "%(host)s" -u "%(user)s" %(tasks)s' % {
                   'fabfile': fabfile,
                   'host': ip,
-                  'user': pwn.vm_user,
+                  'user': user,
                   'tasks': " ".join(ftasks)
               }
     cmd.run_or_die(cmd_str, stdout=True, stderr=True)

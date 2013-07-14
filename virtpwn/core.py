@@ -84,12 +84,20 @@ class MachinePwnManager(object):
     def abs_data_fn(self):
         return os.path.join(self.path, const.DATA_FN)
 
+    def _conf_get_required(self, opt):
+        if opt not in self.conf:
+            raise MissingRequiredConfigOption(option=opt)
+        return self.conf[opt]
+
     def _load_conf(self):
         abs_conf_fn = self.abs_conf_fn()
         log.verbose("Machine config: %s" % abs_conf_fn)
         conf_file = file(abs_conf_fn, 'r')
         self.conf = yaml.load(conf_file)
         log.debug(" -> %s" % self.conf)
+
+        self.base = self._conf_get_required('base')
+        self.vm_user = self.conf.get('user', 'root')
 
     def _load_data(self):
         abs_data_fn = self.abs_data_fn()
@@ -100,6 +108,7 @@ class MachinePwnManager(object):
         log.verbose("Machine data: %s" % abs_data_fn)
         data = yaml.load(data_file)
         log.debug(" -> %s" % data)
+
         self.vm_id = data.get('vm_id')
         self.vm_init = data.get('vm_init')
         self.vm_mnt = data.get('vm_mnt', {})
@@ -163,18 +172,12 @@ class MachinePwnManager(object):
     def _proj_path(self, *path):
         return os.path.join(self.path, *path)
 
-    def _get_base(self):
-        base = self.conf.get('base')
-        if not base:
-            raise MissingRequiredConfigOption(option='base')
-        return base
-
     def _get_domains(self):
         doms_str = cmd.virsh_or_die('list --all --name')
         doms = doms_str.strip().split("\n")
         return doms
 
-    def _generate_id(self, base):
+    def _generate_id(self):
         assert(self.name)
         doms = self._get_domains()
         new_id = self.name
@@ -200,7 +203,7 @@ class MachinePwnManager(object):
                 if self._ip:
                     break
         if fatal and not self._ip:
-            raise UnknownGuestAddress(machine=self.name)
+            raise exception.UnknownGuestAddress(machine=self.name)
         return self._ip
 
     def get_ssh_host(self):
@@ -234,11 +237,10 @@ class MachinePwnManager(object):
     def vm_create(self):
         assert(self.vm_id is None)
         log.verbose("Creating new %s VM.")
-        base = self._get_base()
-        self._generate_id(base)
+        self._generate_id()
         log.debug("New VM ID: %s" % self.vm_id)
         cmdstr = 'sudo virt-clone -o "%s" -n "%s" --auto-clone' % \
-                 (base, self.vm_id)
+                 (self.base, self.vm_id)
         cmd.run_or_die(cmdstr, stdout=True)
         self._save_data()
         self._check_state()
@@ -265,30 +267,38 @@ class MachinePwnManager(object):
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
 
+    def _get_provision_confs(self, opt):
+        opt_multi = '%ss' % opt
+        conf = self.conf.get(opt)
+        if conf != None:
+            confs = [conf]
+        else:
+            confs = self.conf.get(opt_multi)
+            if confs is None:
+                confs = []
+        return confs
+
     def vm_initial_setup(self, tasks=None):
+        confs = self._get_provision_confs('init')
+        if not confs:
+            log.info("No initial setup for %s." % self.name_pp)
+            return
         log.info("Running initial setup for %s:" % self.name_pp)
-        ip = self.get_ip(fatal=True)
-        init_conf = self.conf.get('init')
-        # hostname magic
-        _tasks = init_conf['tasks']
-        if 'hostname' in _tasks:
-            i = _tasks.index('hostname')
-            _tasks[i] = 'hostname:%s' % self.vm_id
-        try:
-            provision.provision(self, init_conf, tasks)
-        except Exception, e:
-            self.vm_init = const.VMINIT_FAIL
-            self._save_data()
-            raise e
+        for conf in confs:
+            try:
+                provision.provision(self, conf, tasks, user='root')
+            except Exception, e:
+                self.vm_init = const.VMINIT_FAIL
+                self._save_data()
+                raise e
         self.vm_init = const.VMINIT_DONE
         self._save_data()
 
     def vm_provision(self, tasks=None):
-        ip = self.get_ip(fatal=True)
-        prov_conf = self.conf.get('provision')
-        if not prov_conf:
-            raise exception.MissingRequiredConfigOption(option='provision')
-        provision.provision(self, prov_conf, tasks)
+        confs = self._get_provision_confs('provision')
+        # TODO: specified tasks with more provisions
+        for conf in confs:
+            provision.provision(self, conf, tasks)
 
     def vm_umount(self, dst=None):
         assert(self.state >= const.VMS_RUNNING)
