@@ -74,12 +74,13 @@ def mount(src=None, dst=None):
 
 
 @arg('dst', nargs='?', help="host mount point")
-def umount(dst=None):
+@arg('-c', '--clean-only', help="clean invalid mounts only")
+def umount(dst=None, clean_only=False):
     """
     Unmount the machine director{ies,y}.
     """
     pwn = core.get_pwn_manager()
-    pwn.do_umount(dst)
+    pwn.do_umount(dst, clean_only=clean_only)
 
 
 @arg('-i', '--init', help="run initial setup")

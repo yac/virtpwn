@@ -252,6 +252,7 @@ class MachinePwnManager(object):
         assert(self.vm_id is not None)
         log.verbose("Starting %s VM: %s", self.name_pp, self.vm_id)
         cmd.virsh_or_die('start "%s"' % self.vm_id)
+        self.vm_clean_mounts()
 
     def vm_stop(self, force=False):
         assert(self.state >= const.VMS_RUNNING)
@@ -266,6 +267,7 @@ class MachinePwnManager(object):
         assert(self.vm_id is not None)
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
+        self._remove_vm_data()
 
     def _get_provision_confs(self, opt):
         opt_multi = '%ss' % opt
@@ -312,7 +314,8 @@ class MachinePwnManager(object):
         for udst in umnts:
             log.info("Unmounting: %s (%s)"
                      % (udst, self.vm_mnt[udst]['src']))
-            cmd.run_or_die("fusermount -u '%s'" % udst)
+            abs_udst = self._proj_path(udst)
+            cmd.run_or_die("fusermount -u '%s'" % abs_udst)
             self.vm_mnt.pop(udst)
             self._save_data()
             abs_dst = self._proj_path(udst)
@@ -320,6 +323,24 @@ class MachinePwnManager(object):
                 os.rmdir(abs_dst)
             except Exception, e:
                 log.info("Can't remove mount point %s" % abs_dst)
+
+    def vm_clean_mounts(self):
+        if not self.vm_mnt:
+            return
+        dsts = self.vm_mnt.keys()
+        for dst in dsts:
+            abs_dst = self._proj_path(dst)
+            cmd_str = "mount | grep '%s'" % abs_dst
+            ret, _, _ = cmd.run(cmd_str)
+            if ret != 0:
+                log.info("%s doesn't seem to be mounted, cleaning."
+                         % dst)
+                self.vm_mnt.pop(dst)
+                self._save_data()
+                try:
+                    os.rmdir(abs_dst)
+                except Exception, e:
+                    log.verbose("Can't remove mount point %s" % abs_dst)
 
     def do_up(self, provision=True):
         if self.state == const.VMS_NOT_CREATED:
@@ -329,6 +350,7 @@ class MachinePwnManager(object):
             log.info("Starting %s...", self.name_pp)
             self.vm_start()
             self._check_state()
+            self.get_ip()
             if provision and not self.vm_init:
                 self.vm_initial_setup()
             if provision:
@@ -405,6 +427,7 @@ class MachinePwnManager(object):
     def do_mount(self, src=None, dst=None):
         if self.state < const.VMS_RUNNING:
             self.do_up()
+        self.vm_clean_mounts()
         if not src:
             src = '/'
         if not dst:
@@ -431,7 +454,12 @@ class MachinePwnManager(object):
         self.vm_mnt[dst] = {'type': 'sshfs', 'src': src}
         self._save_data()
 
-    def do_umount(self, dst=None):
+    def do_umount(self, dst=None, clean_only=False):
+        if clean_only:
+            log.info("Cleaning invalid mounts...")
+        self.vm_clean_mounts()
+        if clean_only:
+            return
         if self.state < const.VMS_RUNNING:
             log.info("%s not running, nothing to unmount." % self.name_pp)
             return
