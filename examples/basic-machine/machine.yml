@@ -1,0 +1,12 @@
+---
+# Base virt domain to clone.
+base: f18
+user: bob
+# Initial provisioning.
+init:
+    # With no fabfile specified, internal one is used.
+    # See virtpwn/fabric/fabfile.py for available tasks.
+    tasks:
+        - ssh_copy_id: redhat
+        - hostname
+        - add_admin_user

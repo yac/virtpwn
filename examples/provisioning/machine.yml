@@ -1,0 +1,22 @@
+---
+base: f18
+user: bob
+# Initial provisioning. Run automatically only on machine creation, can be
+# rerun by `virtpwn provision -i`.
+inits:
+    - tasks:
+          - ssh_copy_id: rootpassword
+          - hostname
+          - add_admin_user
+    - fabfile: ../../fabric/fabfile.py
+      tasks:
+          - yum_install_cool_stuff
+          - push_system_conf
+# This provisioning is run everytime so it should be idempotent. You can
+# specify multiple  provisioning sources by using plural (provisions) and list
+# as above with inits. More docs needed on this, I know.
+provision:
+    fabfile: ../../fabric/fabfile.py
+    tasks:
+        - task
+        - another_task: argument,opt=val
