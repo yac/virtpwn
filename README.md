@@ -49,7 +49,7 @@ Let's copy some files to the VM:
     * argh
     * blessings
     * lxml
- * virsh command line tools:
+ * virt command line tools:
     * `virsh` libvirt client
     * `virt-clone` 
  * fabric

@@ -190,7 +190,7 @@ class MachinePwnManager(object):
         self.vm_id = new_id
         return self.vm_id
 
-    def get_ip(self, wait=30, fatal=False, log_fun=log.info):
+    def get_ip(self, wait=const.WAIT_START, fatal=False, log_fun=log.info):
         assert(self.vm_id is not None)
         if self._ip:
             return self._ip
@@ -222,7 +222,7 @@ class MachinePwnManager(object):
         ret, _, _ = run(": | nc '%s' %d" % (ip, port))
         return (ret == 0)
 
-    def ensure_ssh(self, wait=30, log_fun=log.info):
+    def ensure_ssh(self, wait=const.WAIT_START, log_fun=log.info):
         assert(self.state >= const.VMS_RUNNING)
         self.get_ip()
         if self.check_ssh():
@@ -406,7 +406,7 @@ class MachinePwnManager(object):
             for dst, mnt in self.vm_mnt.items():
                 log.info("%s -> %s" % (mnt['src'], dst))
 
-    def do_ssh(self, wait=30):
+    def do_ssh(self, wait=const.WAIT_START):
         if self.state < const.VMS_RUNNING:
             self.do_up()
             self._check_state()

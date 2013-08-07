@@ -16,3 +16,5 @@ VMINIT_FAIL = 'fail'
 VMINIT_DONE = 'done'
 
 VM_MNT = 'mnt'
+
+WAIT_START = 60
