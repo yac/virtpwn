@@ -5,13 +5,16 @@ import cmd
 import core
 import exception
 import log
+import sys
 from log import term
 
 from argh import arg, aliases
+from argh.assembling import SUPPORTS_ALIASES
+from argh.constants import ATTR_ALIASES
 
 
 @arg('-n', '--no-provision', help="disable provisioning")
-@aliases('start')
+@aliases('start', 'run')
 def up(no_provision=False):
     """
     Ready and start the machine.
@@ -21,7 +24,7 @@ def up(no_provision=False):
 
 
 @arg('-f', '--force', help="force shutdown")
-@aliases('stop', 'halt', 'poweroff')
+@aliases('stop', 'halt', 'die', 'poweroff')
 def down(force=False):
     """
     Poweroff the machine.
@@ -85,12 +88,36 @@ def umount(dst=None, clean_only=False):
 
 @arg('-i', '--init', help="run initial setup")
 @arg('tasks', nargs='*', help="specify provisioning tasks")
+@aliases('prv')
 def provision(tasks, init=False):
     """
     Provision the machine.
     """
     pwn = core.get_pwn_manager()
     pwn.do_provision(tasks=tasks, init=init)
+
+
+COMMANDS = [up, down, delete, info, ssh, provision, mount, umount]
+
+
+def translate_alias(command):
+    for c in COMMANDS:
+        if hasattr(c, ATTR_ALIASES):
+            aliases = getattr(c, ATTR_ALIASES)
+            for alias in aliases:
+                if alias == command:
+                    return c.__name__
+    return command
+
+def process_argv():
+    argv = sys.argv[1:]
+    if not SUPPORTS_ALIASES:
+        # do aliasing ourselves if argparse doesn't support it
+        for i, arg in enumerate(argv):
+            if arg[0] != '-':
+                argv[i] = translate_alias(arg)
+                break
+    return argv
 
 
 def parse_global_args(args):
@@ -104,14 +131,13 @@ def parse_global_args(args):
 
 def main():
     parser = argh.ArghParser()
-    commands = [up, down, delete, info, ssh, provision, mount, umount]
-    parser.add_commands(commands)
+    parser.add_commands(COMMANDS)
     parser.add_argument('-c', '--show-commands', action='store_true',
                         help="display virsh/shell commands used")
     parser.add_argument('-v', '--verbose', action='count',
                         help="increase output verbosity", default=0)
     try:
-        parser.dispatch(pre_call=parse_global_args)
+        argh.dispatch(parser, argv=process_argv(), pre_call=parse_global_args)
     except exception.CommandFailed, ex:
         cmd.log_cmd_fail(ex)
     except exception.ProjectConfigNotFound, ex:

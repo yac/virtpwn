@@ -3,11 +3,13 @@
 from cmd import run, virsh
 import cmd
 import const
+import collections
 import exception
 import ip
 import log
 from log import term
 import provision
+import re
 
 import logging
 import os
@@ -98,6 +100,7 @@ class MachinePwnManager(object):
 
         self.base = self._conf_get_required('base')
         self.vm_user = self.conf.get('user', 'root')
+        self.mounts = self.conf.get('mount', [])
 
     def _load_data(self):
         abs_data_fn = self.abs_data_fn()
@@ -257,7 +260,11 @@ class MachinePwnManager(object):
     def vm_stop(self, force=False):
         assert(self.state >= const.VMS_RUNNING)
         assert(self.vm_id is not None)
-        self.vm_umount()
+        try:
+            self.vm_umount()
+        except Exception as ex:
+            if not force:
+                raise
         cmd_str = 'destroy "%s"' % self.vm_id
         if not force:
             cmd_str += ' --graceful'
@@ -424,23 +431,20 @@ class MachinePwnManager(object):
         else:
             self.vm_provision(tasks)
 
-    def do_mount(self, src=None, dst=None):
-        if self.state < const.VMS_RUNNING:
-            self.do_up()
-        self.vm_clean_mounts()
-        if not src:
-            src = '/'
+    def vm_mount(self, src, dst=None):
         if not dst:
-            dst = const.VM_MNT
+            dst = os.path.basename(src.rstrip(os.sep))
+            if not dst:
+                dst = const.VM_MNT
         abs_dst = self._proj_path(dst)
+        log.info("Mounting %s:%s to %s using sshfs..."
+                 % (self.get_ip(), src, dst))
         if dst in self.vm_mnt:
             emnt = self.vm_mnt[dst]
             log.info("Already mounted using %s:" % emnt['type'])
             log.info("    mount point: %s" % dst)
             log.info("    %s dir: %s" % (self.name_pp, emnt['src']))
             return
-        log.info("Mounting %s:%s to %s using sshfs..."
-                 % (self.get_ip(), src, dst))
         self.ensure_ssh()
         host = self.get_ssh_host()
         if not os.path.isdir(abs_dst):
@@ -453,6 +457,50 @@ class MachinePwnManager(object):
         cmd.run_or_die(cmd_str)
         self.vm_mnt[dst] = {'type': 'sshfs', 'src': src}
         self._save_data()
+
+    def _check_mounts(self):
+        if self.mounts and not isinstance(self.mounts, collections.Iterable):
+            raise InvalidConfig(
+                reason="'mount' isn't iterable. It must be a list of mounts.")
+        for mnt in self.mounts:
+            if not hasattr(mnt, 'get'): 
+                raise InvalidConfig(
+                    reason="Mount point must be a dict-like object. (%s)" % mnt)
+            if not mnt.get('vm'):
+                raise MissingRequiredConfigOption(
+                    reason="Mount point doesn't contain VM directory to mount 'vm'. (%s)" % mnt) 
+
+    def do_mount(self, src=None, dst=None, auto_only=False):
+        if self.state < const.VMS_RUNNING:
+            self.do_up()
+        self.vm_clean_mounts()
+        if src:
+            if dst:
+                self.vm_mount(src, dst=dst)
+                return
+            self._check_mounts()
+            def _match_mount(mnt):
+                if re.search(src, mnt.get('vm', '')) or \
+                   re.search(src, mnt.get('local', '')):
+                    return True
+                return False
+            mounts = [m for m in self.mounts if _match_mount(m)]
+            if not mounts:
+                self.vm_mount(src)
+                return
+        elif self.mounts:
+            self._check_mounts()
+            mounts = self.mounts
+        else:
+            if auto_only:
+                return
+            log.info("No mounts configured, mountig /")
+            self.vm_mount('/')
+            return
+        if auto_only:
+            [m for m in mount if m.get('auto', False)]
+        for mnt in mounts:
+            self.vm_mount(mnt['vm'], dst=mnt.get('local', None))
 
     def do_umount(self, dst=None, clean_only=False):
         if clean_only:
