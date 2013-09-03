@@ -307,7 +307,13 @@ class MachinePwnManager(object):
         confs = self._get_provision_confs('provision')
         # TODO: specified tasks with more provisions
         for conf in confs:
-            provision.provision(self, conf, tasks)
+            if tasks:
+                try:
+                    provision.provision(self, conf, tasks)
+                except Exception as e:
+                    pass
+            else:
+                provision.provision(self, conf, tasks)
 
     def vm_umount(self, dst=None):
         assert(self.state >= const.VMS_RUNNING)
