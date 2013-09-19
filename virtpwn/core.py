@@ -366,6 +366,7 @@ class MachinePwnManager(object):
             self.get_ip()
             if provision and not self.vm_init:
                 self.vm_initial_setup()
+            self.do_mount(auto_only=True)
             if provision:
                 self.vm_provision()
         else:
@@ -504,7 +505,9 @@ class MachinePwnManager(object):
             self.vm_mount('/')
             return
         if auto_only:
-            [m for m in mount if m.get('auto', False)]
+            mounts = [m for m in mounts if m.get('auto', False)]
+            if mounts:
+                log.info("Auto mounting...")
         for mnt in mounts:
             self.vm_mount(mnt['vm'], dst=mnt.get('local', None))
 
