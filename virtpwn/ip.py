@@ -6,11 +6,7 @@ from log import term
 from lxml import etree
 
 def _get_instance_ip_lease(mac):
-    # network name - use default for now
-    net = 'default'
-    cmd_str = ('grep -i "%(mac)s" '
-               '/var/lib/libvirt/dnsmasq/%(net)s.leases'
-               % {'mac': mac, 'net': net})
+    cmd_str = ('grep -i "%s" /var/lib/libvirt/dnsmasq/*.leases' % mac)
     lease = cmd.run_or_die(cmd_str).rstrip()
     ip = lease.split(" ")[2]
     return ip
