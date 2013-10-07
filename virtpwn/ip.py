@@ -35,5 +35,5 @@ def get_instance_ip(name):
         cmd.log_cmd_fail(ex, fail_log_fun=log.verbose,
                             out_log_fun=log.verbose)
     except Exception, ex:
-        log.verbose('Failed to get instance IP address from DHCP leases:' % ex)
+        log.verbose('Failed to get instance IP address from DHCP leases: %s' % ex)
     return ip
