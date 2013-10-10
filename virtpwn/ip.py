@@ -5,11 +5,36 @@ from log import term
 
 from lxml import etree
 
-def _get_instance_ip_lease(mac):
-    cmd_str = ('grep -i "%s" /var/lib/libvirt/dnsmasq/*.leases' % mac)
-    lease = cmd.run_or_die(cmd_str).rstrip()
-    ip = lease.split(" ")[2]
-    return ip
+def _get_instance_ip(mac):
+    errors = []
+    # 1. get IP from DHCP leases
+    try:
+        cmd_str = 'grep -i "%s" /var/lib/libvirt/dnsmasq/*.leases' % mac
+        lease = cmd.run_or_die(cmd_str).rstrip()
+        ip = lease.split(" ")[2]
+        log.verbose("Got IP from DHCP leases.")
+        return ip
+    except Exception as e:
+        errors.append(('DHCP leases', str(e)))
+
+    # 2. get IP from ARP table
+    try:
+        arp_stdout = cmd.run_or_die('arp -n')
+        for line in arp_stdout.splitlines()[1:]:
+            parts = line.split()
+            if parts[2] == mac:
+                log.verbose("Got IP from ARP cache.")
+                return parts[0]
+    except Exception as e:
+        errors.append(('ARP cache', str(e)))
+    else:
+        errors.append(('ARP cache', 'MAC not found'))
+
+    errsum = "\n".join(map(lambda e: " * %s" % ": ".join(e), errors))
+    desc = 'Failed to obtain IP address from following sources:\n%s' % errsum
+    log.verbose(desc)
+    return None
+
 
 def get_instance_ip(name):
     """
@@ -18,18 +43,7 @@ def get_instance_ip(name):
     out = cmd.virsh_or_die("dumpxml %s" % name)
     domxml = etree.fromstring(out)
     mac_path = "devices/interface/mac"
+    # Filters could be added here if needed a la
     # mac_path = "devices/interface[@type='bridge']/mac"
     mac = domxml.find(mac_path).attrib["address"].lower().strip()
-
-    ip = None
-    # So far, only method is from DHCP lease, but in future other methods
-    # such as qemu guest daemon or sniffing can be added.
-    try:
-        ip = _get_instance_ip_lease(mac)
-    except exception.CommandFailed, ex:
-        log.verbose('Failed to get instance IP address from DHCP leases:')
-        cmd.log_cmd_fail(ex, fail_log_fun=log.verbose,
-                            out_log_fun=log.verbose)
-    except Exception, ex:
-        log.verbose('Failed to get instance IP address from DHCP leases: %s' % ex)
-    return ip
+    return _get_instance_ip(mac)
