@@ -75,13 +75,18 @@ After you managed to install the above requirements:
     git clone https://github.com/yac/virtpwn.git
     cd virtpwn
     # use develop mode to allow comfortable hacking
-    sudo python setup.py develop
+    python setup.py develop --user
+    # or just install
+    python setup.py install --user
+
+After this, `virtpwn` executable should be in `~/.local/bin` so either add it
+to `$PATH` or copy/symlink to appropriate location.
 
 Being lazy person, I create a `vm` alias for `virtpwn`:
 
     # optional
     cd `dirname $(which virtpwn)`
-    sudo ln -s virtpwn vm
+    ln -s virtpwn vm
 
 After that, just create a directory with `machine.yml` config file.
 
@@ -98,6 +103,9 @@ met, you're good to go:
 To get all available commands, use
 
     virtpwn help
+
+Config documentation is missing so far, but I try to have everything covered
+by [examples](examples/).
 
 Have fun!
 
