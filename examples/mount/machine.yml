@@ -1,0 +1,11 @@
+---
+base: f19
+mount:
+    # mount /home/bob to bob
+    - vm: /home/bob
+    # mount /home/maxmilian to max
+    - vm: /home/maxmilian
+      local: max
+    # auto mount (on VM start) /root to mnt/root
+    - vm: /root
+      auto: true
