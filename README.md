@@ -18,9 +18,10 @@ even hack it for you, feel free to create issues.
  * Provisioning using Fabric. (ready for chef/puppet support)
  * Easily SSH to VM. (`virtpwn ssh`)
  * Easily mount VM filesystem using sshfs. (`virtpwn mount`)
+ * Automatically mount VM filesystem on start.
  * Configure your VM using nice YAML config. 
  * `virtpwn` uses virt command line tools and can show you the exact commands
-   used (`-c`)
+   used. (`-c`)
  
 Once you have your machine config up, it's a matter of one command to create
 new machine, provision it and SSH to it:
@@ -61,11 +62,11 @@ work on Fedora:
     yum install python-argh python-blessings python-lxml libvirt-client
         virt-install fabric
 
-might do the trick. If some of them aren't packaged, fastest way is to use
-`pip` or when everything else fails, `easy_install`. I for one like to have
-latest Fabric since my distro ships a terribly old version, so:
+If some of them aren't packaged, fastest way is to use `pip` or when
+everything else fails, `easy_install`. I for one like to have latest Fabric
+since my distro ships a terribly old version, so:
 
-    pip install fabric
+    pip install --user fabric
 
 ## QUICKSTART
 
