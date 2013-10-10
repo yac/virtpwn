@@ -1,9 +1,8 @@
 import cmd
-import exception
 import log
-from log import term
 
 from lxml import etree
+
 
 def _get_instance_ip(mac):
     errors = []
