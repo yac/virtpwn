@@ -242,7 +242,7 @@ class MachinePwnManager(object):
         log.verbose("Creating new %s VM.")
         self._generate_id()
         log.debug("New VM ID: %s" % self.vm_id)
-        cmdstr = 'sudo virt-clone -o "%s" -n "%s" --auto-clone' % \
+        cmdstr = 'virt-clone -o "%s" -n "%s" --auto-clone' % \
                  (self.base, self.vm_id)
         cmd.run_or_die(cmdstr, stdout=True)
         self._save_data()
