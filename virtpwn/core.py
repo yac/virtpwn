@@ -381,10 +381,17 @@ class MachinePwnManager(object):
             log.info("Stopping %s..." % self.name_pp)
             self.vm_stop(force)
 
-    def do_delete(self):
+    def do_delete(self, confirm=True):
         if self.state == const.VMS_NOT_CREATED:
             log.info("%s isn't created.", self.name_pp)
             return
+        if confirm:
+            msg = "Do you want to %s machine %s? [Yn] " % (
+                term.red("DELETE"), term.bold(self.name))
+            cfrm = raw_input(msg)
+            if cfrm != '' and cfrm.lower() != 'y':
+                log.info("Aborted.")
+                return
         if self.state >= const.VMS_RUNNING:
             log.info("Force stopping %s..." % self.name_pp)
             self.vm_stop(force=True)

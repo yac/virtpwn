@@ -48,13 +48,7 @@ def delete():
     Delete the machine.
     """
     pwn = core.get_pwn_manager()
-    msg = "Do you want to %s machine %s? [Yn] " % (
-        term.red("DELETE"), term.bold(pwn.name))
-    cfrm = raw_input(msg)
-    if cfrm == '' or cfrm.lower() == 'y':
-        pwn.do_delete()
-    else:
-        print "Aborted."
+    pwn.do_delete(confirm=True)
 
 
 def ssh():
