@@ -193,13 +193,13 @@ class MachinePwnManager(object):
         self.vm_id = new_id
         return self.vm_id
 
-    def get_ip(self, wait=const.WAIT_START, fatal=False, log_fun=log.info):
+    def get_ip(self, wait=const.WAIT_START, fatal=False):
         assert(self.vm_id is not None)
         if self._ip:
             return self._ip
         self._ip = ip.get_instance_ip(self.vm_id)
         if not self._ip and wait:
-            log_fun("Waiting for IP address for next %d s..." % wait)
+            log.info("Waiting for IP address for next %d s..." % wait)
             for i in range(0, wait):
                 time.sleep(1)
                 self._ip = ip.get_instance_ip(self.vm_id)
@@ -225,12 +225,12 @@ class MachinePwnManager(object):
         ret, _, _ = run(": | nc '%s' %d" % (ip, port))
         return (ret == 0)
 
-    def ensure_ssh(self, wait=const.WAIT_START, log_fun=log.info):
+    def ensure_ssh(self, wait=const.WAIT_START):
         assert(self.state >= const.VMS_RUNNING)
         self.get_ip()
         if self.check_ssh():
             return
-        log_fun("Waiting for SSH connection for next %d s..." % wait)
+        log.info("Waiting for SSH connection for next %d s..." % wait)
         for i in range(0, wait):
             time.sleep(1)
             if self.check_ssh():
@@ -239,7 +239,8 @@ class MachinePwnManager(object):
 
     def vm_create(self):
         assert(self.vm_id is None)
-        log.verbose("Creating new %s VM.")
+        log.info("Creating new %s VM based on %s..." % (self.name_pp,
+                                                       term.bold(self.base)))
         self._generate_id()
         log.debug("New VM ID: %s" % self.vm_id)
         cmdstr = 'virt-clone -o "%s" -n "%s" --auto-clone' % \
@@ -253,13 +254,23 @@ class MachinePwnManager(object):
     def vm_start(self):
         assert(self.state == const.VMS_POWEROFF)
         assert(self.vm_id is not None)
-        log.verbose("Starting %s VM: %s", self.name_pp, self.vm_id)
+        if self.vm_id == self.name:
+            msg = "Starting %s VM..." % self.name_pp
+        else:
+            msg = "Starting %s VM, virt domain %s..." % (self.name_pp,
+                                                         term.bold(self.vm_id))
+        log.info(msg)
         cmd.virsh_or_die('start "%s"' % self.vm_id)
         self.vm_clean_mounts()
 
     def vm_stop(self, force=False):
         assert(self.state >= const.VMS_RUNNING)
         assert(self.vm_id is not None)
+        if force:
+            msg = "Force stopping %s VM..." % self.name_pp
+        else:
+            msg = "Stopping %s VM..." % self.name_pp
+        log.info(msg)
         try:
             self.vm_umount()
         except Exception as ex:
@@ -272,6 +283,7 @@ class MachinePwnManager(object):
 
     def vm_destroy(self):
         assert(self.vm_id is not None)
+        log.info("Deleting %s VM..." % self.name_pp)
         cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
         cmd.virsh_or_die(cmd_str)
         self._remove_vm_data()
@@ -340,6 +352,7 @@ class MachinePwnManager(object):
     def vm_clean_mounts(self):
         if not self.vm_mnt:
             return
+        log.info("Cleaning invalid mounts...")
         dsts = self.vm_mnt.keys()
         for dst in dsts:
             abs_dst = self._proj_path(dst)
@@ -357,10 +370,8 @@ class MachinePwnManager(object):
 
     def do_up(self, provision=True):
         if self.state == const.VMS_NOT_CREATED:
-            log.info("Creating new %s...", self.name_pp)
             self.vm_create()
         if self.state < const.VMS_RUNNING:
-            log.info("Starting %s...", self.name_pp)
             self.vm_start()
             self._check_state()
             self.get_ip()
@@ -378,7 +389,6 @@ class MachinePwnManager(object):
         elif self.state < const.VMS_RUNNING:
             log.info("%s isn't running.", self.name_pp)
         else:
-            log.info("Stopping %s..." % self.name_pp)
             self.vm_stop(force)
 
     def do_delete(self, confirm=True):
@@ -386,16 +396,14 @@ class MachinePwnManager(object):
             log.info("%s isn't created.", self.name_pp)
             return
         if confirm:
-            msg = "Do you want to %s machine %s? [Yn] " % (
-                term.red("DELETE"), term.bold(self.name))
+            msg = "Do you want to %s machine %s? [Yn] " % \
+                  (term.red("DELETE"), term.bold(self.name))
             cfrm = raw_input(msg)
             if cfrm != '' and cfrm.lower() != 'y':
                 log.info("Aborted.")
                 return
         if self.state >= const.VMS_RUNNING:
-            log.info("Force stopping %s..." % self.name_pp)
             self.vm_stop(force=True)
-        log.info("Deleting %s..." % self.name_pp)
         self.vm_destroy()
 
     def do_info(self):
@@ -520,14 +528,12 @@ class MachinePwnManager(object):
 
     def do_umount(self, dst=None, clean_only=False):
         if clean_only:
-            log.info("Cleaning invalid mounts...")
-        self.vm_clean_mounts()
-        if clean_only:
+            self.vm_clean_mounts()
             return
         if self.state < const.VMS_RUNNING:
             log.info("%s not running, nothing to unmount." % self.name_pp)
             return
         if not self.vm_mnt:
-            log. info("Nothing is mounted.")
+            log.info("Nothing is mounted.")
             return
         self.vm_umount(dst)
