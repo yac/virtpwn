@@ -53,7 +53,7 @@ def admin_sudo_nopass():
                     '/etc/sudoers')
 
 def add_admin_user(user, password=DEFAULT_PASSWORD):
-    run("test '%s' != root")
+    run("test '%s' != root" % user)
     if run("id -u '%s' > /dev/null ; echo -n $?" % user) != '0':
         run("useradd -m -G wheel '%s'" % (user))
         run("echo '%s:%s' | chpasswd" % (user, password))
