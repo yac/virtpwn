@@ -25,7 +25,7 @@ def tasks_magic(tasks, pwn):
             log.verbose("Magically modifying task '%s' to '%s'" % (old,new))
             i = tasks.index(old)
             tasks[i] = new
-    replace('hostname', 'hostname:%s' % pwn.vm_id)
+    replace('hostname', 'hostname:%s' % pwn.name)
     replace('add_admin_user', 'add_admin_user:%s' % pwn.vm_user)
 
 def provision(pwn, conf, tasks=None, user=None):

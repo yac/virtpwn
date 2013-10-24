@@ -235,7 +235,7 @@ class MachinePwnManager(object):
             time.sleep(1)
             if self.check_ssh():
                 return
-        raise SshConnectionError(machine=self.name)
+        raise exception.SshConnectionError(machine=self.name)
 
     def vm_create(self):
         assert(self.vm_id is None)
