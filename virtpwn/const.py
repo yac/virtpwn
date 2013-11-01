@@ -9,7 +9,7 @@ VMS_DESC = [
     "not created",
     "powered off",
     "running",
-    "rewsponding"
+    "responding"
 ]
 
 VMINIT_FAIL = 'fail'
