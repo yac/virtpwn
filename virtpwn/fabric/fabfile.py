@@ -1,5 +1,6 @@
 from fabric.api import run, local, env, settings
 from fabric.utils import warn
+from fabric.contrib.files import append, contains, sed
 import re
 
 
@@ -43,10 +44,10 @@ def hostname(name):
     run("hostname '%s'" % name)
 
 def ensure_confline(line, rex, fn):
-    if run("grep -qE '%s' '%s' ; echo -n $?" % (rex, fn)) == '0':
-        run("sed -ir 's/%s/%s/' '%s'" % (rex, line, fn))
+    if contains(fn, rex, escape=False):
+        sed(fn, rex, line)
     else:
-        run("echo '%s' >> '%s'" % (line, fn))
+        append(fn, line)
 
 def admin_sudo_nopass():
     ensure_confline('%wheel	ALL=(ALL)	NOPASSWD: ALL', '^%wheel[[:space:]].*',
