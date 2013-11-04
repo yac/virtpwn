@@ -163,7 +163,6 @@ class MachinePwnManager(object):
         self.name = self.path.split(os.sep)[-1]
         # config
         self.vm_id = None
-        # TODO: configurable
         self.vm_user = 'root'
         self.vm_init = None
         self.vm_mnt = {}
