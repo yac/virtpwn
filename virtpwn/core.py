@@ -443,6 +443,13 @@ class MachinePwnManager(object):
         cmd_seq = "ssh '%s'" % host
         cmd.run(cmd_seq, stdout=True, stderr=True)
 
+    def do_view(self):
+        if self.state < const.VMS_RUNNING:
+            self.do_up()
+            self._check_state()
+        assert(self.state >= const.VMS_RUNNING)
+        cmd.run("virt-viewer '%s'" % (self.vm_id))
+
     def do_provision(self, tasks=None, init=False):
         if self.state < const.VMS_RUNNING:
             self.do_up(provision=False)

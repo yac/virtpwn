@@ -59,6 +59,14 @@ def ssh():
     pwn.do_ssh()
 
 
+def view():
+    """
+    Display the graphical console with virt-viewer.
+    """
+    pwn = core.get_pwn_manager()
+    pwn.do_view()
+
+
 
 @arg('src', nargs='?', help="machine directory to mount")
 @arg('dst', nargs='?', help="host mount point")
@@ -91,7 +99,7 @@ def provision(tasks, init=False):
     pwn.do_provision(tasks=tasks, init=init)
 
 
-COMMANDS = [up, down, delete, info, ssh, provision, mount, umount]
+COMMANDS = [up, down, delete, info, ssh, view, provision, mount, umount]
 
 
 def translate_alias(command):
