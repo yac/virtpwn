@@ -23,7 +23,7 @@ VERSION = '0.1'
 
 def find_project(path=None):
     """
-    Search for poject config files in specified/current directory and its
+    Search for project config files in specified/current directory and its
     parents.
 
     Return (project_path, project_config) tuple if found, otherwise
