@@ -90,7 +90,7 @@ def umount(dst=None, clean_only=False):
 
 @arg('-i', '--init', help="run initial setup")
 @arg('tasks', nargs='*', help="specify provisioning tasks")
-@aliases('prv')
+@aliases('prv', 'fab')
 def provision(tasks, init=False):
     """
     Provision the machine.
