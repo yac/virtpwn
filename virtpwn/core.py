@@ -321,6 +321,7 @@ class MachinePwnManager(object):
             if tasks:
                 try:
                     provision.provision(self, conf, tasks)
+                    break
                 except Exception as e:
                     pass
             else:
