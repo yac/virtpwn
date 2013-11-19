@@ -523,7 +523,7 @@ class MachinePwnManager(object):
         else:
             if auto_only:
                 return
-            log.info("No mounts configured, mountig /")
+            log.info("No mounts configured, mounting /")
             self.vm_mount('/')
             return
         if auto_only:
