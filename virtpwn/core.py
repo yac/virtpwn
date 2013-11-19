@@ -449,7 +449,7 @@ class MachinePwnManager(object):
             self.do_up()
             self._check_state()
         assert(self.state >= const.VMS_RUNNING)
-        cmd.run("virt-viewer '%s'" % (self.vm_id))
+        cmd.run_in_background("virt-viewer '%s'" % (self.vm_id))
 
     def do_provision(self, tasks=None, init=False):
         if self.state < const.VMS_RUNNING:

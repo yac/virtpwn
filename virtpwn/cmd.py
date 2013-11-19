@@ -40,6 +40,11 @@ def run_or_die(cmd, stdout=False, stderr=False):
         raise exception.CommandFailed(cmd=cmd, ret=ret, out=out, err=err)
     return out
 
+def run_in_background(cmd):
+    log.command('$ %s &' % cmd)
+    prc = subprocess.Popen(cmd, shell=True)
+    return prc.pid
+
 def virsh(cmd):
     return run('virsh %s' % cmd)
 
