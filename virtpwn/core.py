@@ -283,7 +283,7 @@ class MachinePwnManager(object):
     def vm_destroy(self):
         assert(self.vm_id is not None)
         log.info("Deleting %s VM..." % self.name_pp)
-        cmd_str = 'undefine "%s" --remove-all-storage' % self.vm_id
+        cmd_str = 'undefine "%s" --remove-all-storage --snapshots-metadata' % self.vm_id
         cmd.virsh_or_die(cmd_str)
         self._remove_vm_data()
 
