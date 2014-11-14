@@ -41,14 +41,15 @@ def info():
     pwn = core.get_pwn_manager()
     pwn.do_info()
 
-
+@arg('-f', '--force', help="force shutdown")
 @aliases('pwn', 'destroy', 'rm')
-def delete():
+def delete(force=False):
     """
     Delete the machine.
     """
+    confirm = not force
     pwn = core.get_pwn_manager()
-    pwn.do_delete(confirm=True)
+    pwn.do_delete(confirm=confirm)
 
 
 def ssh():
