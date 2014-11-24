@@ -17,4 +17,4 @@ VMINIT_DONE = 'done'
 
 VM_MNT = 'mnt'
 
-WAIT_START = 60
+WAIT_START = 300
