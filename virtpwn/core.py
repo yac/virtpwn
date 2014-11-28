@@ -374,11 +374,12 @@ class MachinePwnManager(object):
         if self.state < const.VMS_RUNNING:
             self.vm_start()
             self._check_state()
-            self.get_ip()
             if provision and not self.vm_init:
+                self.get_ip()
                 self.vm_initial_setup()
             self.do_mount(auto_only=True)
             if provision:
+                self.get_ip()
                 self.vm_provision()
         else:
             log.info("%s is already running.", self.name_pp)
