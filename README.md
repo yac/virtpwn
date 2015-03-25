@@ -54,13 +54,15 @@ Let's copy some files to the VM:
     * `virsh` libvirt client
     * `virt-clone` 
  * fabric
+ * sshpass
+ * fuse-sshfs
 
 
 Install these using your favourite package manager. Something like this might
 work on Fedora:
 
     yum install python-argh python-blessings python-lxml libvirt-client
-        virt-install fabric
+        virt-install fabric sshpass
 
 If some of them aren't packaged, fastest way is to use `pip` or when
 everything else fails, `easy_install`. I for one like to have latest Fabric
