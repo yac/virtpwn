@@ -33,10 +33,10 @@ def update_hosts(name, old_name=None):
     if old_name and old_name != name and old_name != 'localhost' \
        and re.search("\s%s[\s$]" % old_name, line):
         # replace old hostname with new one
-        run("sed -i -r 's/(\s)%s(\s|$)/\1%s\2/g' /etc/hosts" % (old_name, name))
+        run(r"sed -i -r 's/(\s)%s(\s|$)/\1%s\2/g' /etc/hosts" % (old_name, name))
     else:
         # append new hostname
-        run("sed -i -r '/^127\.0\.0\.1|::1/s#$# %s#' /etc/hosts" % name)
+        run(r"sed -i -r '/^127\.0\.0\.1|::1/s#$# %s#' /etc/hosts" % name)
 
 def hostname(name):
     update_hosts(name)
